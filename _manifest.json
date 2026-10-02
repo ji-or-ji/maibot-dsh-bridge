@@ -15,6 +15,6 @@
   "host_application": { "min_version": "1.0.0", "max_version": "1.99.99" },
   "sdk": { "min_version": "2.0.0", "max_version": "2.99.99" },
   "dependencies": [],
-  "capabilities": ["send.text", "send.forward", "api.call"],
+  "capabilities": ["send.text", "send.forward", "api.call", "api.get", "maisaka.context.append"],
   "i18n": { "default_locale": "zh-CN", "supported_locales": ["zh-CN"] }
 }

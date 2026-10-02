@@ -3,22 +3,39 @@ enabled = true
 config_version = "0.4.1"
 
 [dsh]
+# dsh 可执行命令（装好后通常是 dsh；Windows 全局装可能在 C:\nodejs\dsh.cmd）
 command = "dsh"
+# 固定附加参数；桥会自动追加 --json
 extra_args = "--profile headless"
+# dsh 工作目录；留空则用插件 data 目录下的 workspace/<stream>
 workspace_dir = ""
+# 超时：dsh 在规划轮自报时长，这里只给夹取范围与默认建议值
 timeout_default = 300
 timeout_min = 60
 timeout_max = 1800
+# 无进展心跳：输出/进程CPU/子进程三信号全静超过此秒数即判卡死
 heartbeat_seconds = 180
+# 重复检测：同一行连续出现达到此次数即判循环
 repeat_threshold = 25
+# 温和终止后的宽限等待（秒），超时才强杀进程树
 grace_seconds = 15
+# 文本回退时最大字符数
 max_output_chars = 8000
+# 合并转发最多节点数 / 单节点最大字符数
 max_forward_nodes = 40
 node_max_chars = 1500
+# 回传形态：forward=合并转发 / text=纯文本
 display_mode = "forward"
+# 回灌进麦麦上下文的结果摘要上限（越小越省上下文）
+context_inject_chars = 600
+# 单次任务最多打包发送的交付物数量
+deliver_max_files = 8
+# 存放 API Key 的环境变量名
 api_key_env = "DEEPSEEK_API_KEY"
+# DeepSeek API Key（明文；留空则用系统环境变量；勿分享本文件）
 api_key = ""
 
 [permission]
 enabled = true
+# 允许使用 /dsh 的用户 ID，逗号分隔；留空且启用则拒绝所有人（fail-closed）
 allowed_users = ""
