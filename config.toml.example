@@ -1,0 +1,24 @@
+[plugin]
+enabled = true
+config_version = "0.4.1"
+
+[dsh]
+command = "dsh"
+extra_args = "--profile headless"
+workspace_dir = ""
+timeout_default = 300
+timeout_min = 60
+timeout_max = 1800
+heartbeat_seconds = 180
+repeat_threshold = 25
+grace_seconds = 15
+max_output_chars = 8000
+max_forward_nodes = 40
+node_max_chars = 1500
+display_mode = "forward"
+api_key_env = "DEEPSEEK_API_KEY"
+api_key = ""
+
+[permission]
+enabled = true
+allowed_users = ""
