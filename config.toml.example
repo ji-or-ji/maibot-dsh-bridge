@@ -30,6 +30,8 @@ display_mode = "forward"
 context_inject_chars = 600
 # 单次任务最多打包发送的交付物数量
 deliver_max_files = 8
+# 是否允许 dsh 经 schedule-requests 自建定时任务（关则禁止，风险自负）
+allow_self_schedule = true
 # 存放 API Key 的环境变量名
 api_key_env = "DEEPSEEK_API_KEY"
 # DeepSeek API Key（明文；留空则用系统环境变量；勿分享本文件）
@@ -39,3 +41,5 @@ api_key = ""
 enabled = true
 # 允许使用 /dsh 的用户 ID，逗号分隔；留空且启用则拒绝所有人（fail-closed）
 allowed_users = ""
+# 是否对 dsh_run / schedule_* 工具也施加白名单（关=工具面放开，风险自负）
+enforce_tools = true

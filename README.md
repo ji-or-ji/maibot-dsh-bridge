@@ -87,8 +87,10 @@ dsh 的能力按「plugin bundle」叠进 profile（改 `$DSH_HOME/profiles/<名
 | `[dsh].heartbeat_seconds` | 无进展心跳：三信号（输出/进程CPU/子进程）全静超此秒数判卡死 |
 | `[dsh].context_inject_chars` | 回灌进麦麦上下文的结果摘要上限（默认 600，越小越省上下文） |
 | `[dsh].deliver_max_files` | 单次任务最多打包发送的交付物数量（默认 8） |
+| `[dsh].allow_self_schedule` | 是否允许 dsh 经 schedule-requests 自建定时任务（默认开；关则禁止） |
 | `[dsh].display_mode` | `forward`（合并转发）或 `text` |
 | `[permission].allowed_users` | 有权使用 `/dsh` 的用户，留空=拒绝所有人 |
+| `[permission].enforce_tools` | 是否对 `dsh_run` / `schedule_*` 工具也施加白名单（默认开；关则工具面放开，风险自负） |
 
 ## 安全边界
 
@@ -103,7 +105,8 @@ dsh 的能力按「plugin bundle」叠进 profile（改 `$DSH_HOME/profiles/<名
 - **子进程**：本插件以子进程方式调用 `dsh`（`subprocess`），这是它的核心用途——把任务交给 dsh 引擎执行。命令取自配置项 `[dsh].command`（默认 `dsh`），**不使用 `shell=True`、不拼接用户输入成命令**。
   - **注意**：`_spawn` 在 Windows 下经 `cmd.exe /c` 启动，`[dsh].command` 与 `[dsh].extra_args` 实质会被 shell 解析——**这两项属管理员可信配置，不得由聊天内容产生**。
   - 当前实现面向 **Windows**（`cmd.exe` / `taskkill`）；非 Windows 环境需自行适配 spawn 与终止逻辑。
-- **权限**：`/dsh`、`dsh_run`、`schedule_*` 均受 `[permission].allowed_users` 约束（工具身份取自触发消息的用户）。白名单留空 = 拒绝所有人。
+- **权限**：`/dsh`、`dsh_run`、`schedule_*` 均受 `[permission].allowed_users` 约束（工具身份取自触发消息的用户）。白名单留空 = 拒绝所有人。若不需要对工具收紧，可将 `[permission].enforce_tools` 设为 `false`（工具面放开，风险自负）。
+- **dsh 自建任务**：`schedule-requests` 通道可用 `[dsh].allow_self_schedule` 关掉（默认开）。
 - **文件写入**：仅写插件数据目录 `ctx.paths.data_dir`；每个聊天流的工作区名做**白名单字符清洗**（仅 `A-Za-z0-9_-`），杜绝 `..` 越位；`schedule-requests/` 内部请求消费后移入 `.done/`。
 - **交付物**：来自 dsh 通过 `present` 声明的文件，逐条校验为「**本流工作区内存在的普通文件**」（resolve 后做 containment）后才发送；`schedule-requests` 等内部路径排除。
 - **网络**：本插件自身**不主动发起外部请求**，不上传聊天记录 / 用户 ID / 群 ID / 图片 / 配置 / token。dsh 是否联网取决于用户自己的 dsh 配置与任务内容。
