@@ -86,6 +86,10 @@ class DshConfig(PluginConfigBase):
         ge=100,
         le=5000,
     )
+    allow_self_schedule: bool = Field(
+        default=True,
+        description="是否允许 dsh 经 schedule-requests 自建定时任务（默认开；关则禁止，风险自负）",
+    )
 
 
 class PermissionConfig(PluginConfigBase):
@@ -95,6 +99,10 @@ class PermissionConfig(PluginConfigBase):
 
     enabled: bool = Field(default=True, description="是否启用用户白名单")
     allowed_users: str = Field(default="", description="允许的用户 ID，逗号分隔；留空且启用则拒绝所有人")
+    enforce_tools: bool = Field(
+        default=True,
+        description="是否对 dsh_run / schedule_* 工具也施加白名单（默认开=安全；关=工具面放开，风险自负）",
+    )
 
 
 class DshBridgeConfig(PluginConfigBase):
@@ -393,6 +401,8 @@ class DshBridgePlugin(MaiBotPlugin):
 
     async def _process_schedule_requests(self, stream_id: str, ctx: dict[str, Any]) -> None:
         """扫描 dsh 写下的 schedule-requests/*.json，建任务后移到 .done（幂等）。"""
+        if not self.config.dsh.allow_self_schedule:
+            return
         req_dir = self._schedule_requests_dir(stream_id)
         if not req_dir.is_dir():
             return
@@ -1102,7 +1112,7 @@ class DshBridgePlugin(MaiBotPlugin):
 
         if not self.config.plugin.enabled:
             return {"success": False, "error": "插件未启用"}
-        if not self._is_allowed(kwargs):
+        if self.config.permission.enforce_tools and not self._is_allowed(kwargs):
             return {"success": False, "error": "无权限使用 dsh_run"}
         if not task:
             return {"success": False, "error": "缺少 task"}
@@ -1140,7 +1150,7 @@ class DshBridgePlugin(MaiBotPlugin):
     async def _tool_schedule_task(self, **kwargs: Any) -> dict[str, Any]:
         if not self.config.plugin.enabled:
             return {"success": False, "error": "插件未启用"}
-        if not self._is_allowed(kwargs):
+        if self.config.permission.enforce_tools and not self._is_allowed(kwargs):
             return {"success": False, "error": "无权限使用 schedule_task"}
         title = str(kwargs.get("title") or "").strip()
         prompt = str(kwargs.get("prompt") or "").strip()
@@ -1200,7 +1210,7 @@ class DshBridgePlugin(MaiBotPlugin):
         ],
     )
     async def _tool_schedule_update(self, **kwargs: Any) -> dict[str, Any]:
-        if not self._is_allowed(kwargs):
+        if self.config.permission.enforce_tools and not self._is_allowed(kwargs):
             return {"success": False, "error": "无权限使用 schedule_update"}
         tid = str(kwargs.get("id") or "").strip()
         task = self._tasks.get(tid)
@@ -1231,7 +1241,7 @@ class DshBridgePlugin(MaiBotPlugin):
         parameters=[ToolParameterInfo(name="id", param_type=ToolParamType.STRING, description="任务 id", required=True)],
     )
     async def _tool_schedule_cancel(self, **kwargs: Any) -> dict[str, Any]:
-        if not self._is_allowed(kwargs):
+        if self.config.permission.enforce_tools and not self._is_allowed(kwargs):
             return {"success": False, "error": "无权限使用 schedule_cancel"}
         tid = str(kwargs.get("id") or "").strip()
         if tid in self._tasks:
