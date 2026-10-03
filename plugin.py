@@ -491,7 +491,7 @@ class DshBridgePlugin(MaiBotPlugin):
         root = self.config.dsh.workspace_dir.strip()
         base = Path(root) if root else (Path(self.ctx.paths.data_dir) / "workspace")
         if stream_id:
-            safe = re.sub(r"[^A-Za-z0-9_.-]", "_", stream_id).strip("_") or "default"
+            safe = re.sub(r"[^A-Za-z0-9_-]", "_", stream_id).strip("_") or "default"
             base = base / safe
         base.mkdir(parents=True, exist_ok=True)
         return str(base)
@@ -882,7 +882,14 @@ class DshBridgePlugin(MaiBotPlugin):
                 if not cand.is_absolute():
                     cand = Path(ws) / p
                 try:
-                    rp = str(cand.resolve())
+                    cand_resolved = cand.resolve()
+                    rp = str(cand_resolved)
+                except Exception:  # noqa: BLE001
+                    continue
+                # 必须落在本流工作区内（防 ../ 或宿主任意路径被外发）
+                try:
+                    if not cand_resolved.is_relative_to(Path(ws).resolve()):
+                        continue
                 except Exception:  # noqa: BLE001
                     continue
                 if "schedule-requests" in rp:
@@ -1095,6 +1102,8 @@ class DshBridgePlugin(MaiBotPlugin):
 
         if not self.config.plugin.enabled:
             return {"success": False, "error": "插件未启用"}
+        if not self._is_allowed(kwargs):
+            return {"success": False, "error": "无权限使用 dsh_run"}
         if not task:
             return {"success": False, "error": "缺少 task"}
         if raw_timeout is None:
@@ -1131,6 +1140,8 @@ class DshBridgePlugin(MaiBotPlugin):
     async def _tool_schedule_task(self, **kwargs: Any) -> dict[str, Any]:
         if not self.config.plugin.enabled:
             return {"success": False, "error": "插件未启用"}
+        if not self._is_allowed(kwargs):
+            return {"success": False, "error": "无权限使用 schedule_task"}
         title = str(kwargs.get("title") or "").strip()
         prompt = str(kwargs.get("prompt") or "").strip()
         if not title or not prompt:
@@ -1189,6 +1200,8 @@ class DshBridgePlugin(MaiBotPlugin):
         ],
     )
     async def _tool_schedule_update(self, **kwargs: Any) -> dict[str, Any]:
+        if not self._is_allowed(kwargs):
+            return {"success": False, "error": "无权限使用 schedule_update"}
         tid = str(kwargs.get("id") or "").strip()
         task = self._tasks.get(tid)
         if not task:
@@ -1218,6 +1231,8 @@ class DshBridgePlugin(MaiBotPlugin):
         parameters=[ToolParameterInfo(name="id", param_type=ToolParamType.STRING, description="任务 id", required=True)],
     )
     async def _tool_schedule_cancel(self, **kwargs: Any) -> dict[str, Any]:
+        if not self._is_allowed(kwargs):
+            return {"success": False, "error": "无权限使用 schedule_cancel"}
         tid = str(kwargs.get("id") or "").strip()
         if tid in self._tasks:
             self._tasks.pop(tid, None)
