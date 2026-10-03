@@ -104,7 +104,8 @@ dsh 的能力按「plugin bundle」叠进 profile（改 `$DSH_HOME/profiles/<名
 
 - **子进程**：本插件以子进程方式调用 `dsh`（`subprocess`），这是它的核心用途——把任务交给 dsh 引擎执行。命令取自配置项 `[dsh].command`（默认 `dsh`），**不使用 `shell=True`、不拼接用户输入成命令**。
   - **注意**：`_spawn` 在 Windows 下经 `cmd.exe /c` 启动，`[dsh].command` 与 `[dsh].extra_args` 实质会被 shell 解析——**这两项属管理员可信配置，不得由聊天内容产生**。
-  - 当前实现面向 **Windows**（`cmd.exe` / `taskkill`）；非 Windows 环境需自行适配 spawn 与终止逻辑。
+  - **平台**：Windows 与类 Unix 均已支持。Windows 经 `cmd.exe /c` 启动、以 `taskkill /T` 终止整棵进程树；类 Unix 经 `/bin/sh -c` 启动、子进程独立进程组，终止时用 `killpg` 整体干掉。
+  - 说明：最初只在 Windows 上验证过（作者手边没有可跑 WSL / Docker / Linux 的环境），所以起步阶段**没打算适配 Linux**；后来调研发现有不少用户跑在 Linux 上，于是补上了跨平台支持。**非 Windows 环境请自行评估适配性。**
 - **权限**：`/dsh`、`dsh_run`、`schedule_*` 均受 `[permission].allowed_users` 约束（工具身份取自触发消息的用户）。白名单留空 = 拒绝所有人。若不需要对工具收紧，可将 `[permission].enforce_tools` 设为 `false`（工具面放开，风险自负）。
 - **dsh 自建任务**：`schedule-requests` 通道可用 `[dsh].allow_self_schedule` 关掉（默认开）。
 - **文件写入**：仅写插件数据目录 `ctx.paths.data_dir`；每个聊天流的工作区名做**白名单字符清洗**（仅 `A-Za-z0-9_-`），杜绝 `..` 越位；`schedule-requests/` 内部请求消费后移入 `.done/`。

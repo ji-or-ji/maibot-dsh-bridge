@@ -29,7 +29,9 @@ import asyncio
 import json
 import os
 import re
+import shlex
 import shutil
+import signal
 import subprocess
 import tempfile
 import threading
@@ -47,6 +49,7 @@ except Exception:  # noqa: BLE001
     psutil = None  # type: ignore
 
 _CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+_IS_WINDOWS = os.name == "nt"
 _POLL_SECONDS = 5.0
 
 
@@ -529,13 +532,20 @@ class DshBridgePlugin(MaiBotPlugin):
 
     @staticmethod
     def _kill_tree(pid: int) -> None:
+        """终止整棵进程树（Windows: taskkill /T；类 Unix: 先杀进程组再兜底）。"""
         try:
-            subprocess.run(
-                ["taskkill", "/T", "/F", "/PID", str(pid)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=_CREATE_NO_WINDOW,
-            )
+            if _IS_WINDOWS:
+                subprocess.run(
+                    ["taskkill", "/T", "/F", "/PID", str(pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=_CREATE_NO_WINDOW,
+                )
+            else:
+                try:
+                    os.killpg(os.getpgid(pid), signal.SIGKILL)
+                except Exception:  # noqa: BLE001
+                    os.kill(pid, signal.SIGKILL)
         except Exception:  # noqa: BLE001
             pass
 
@@ -552,7 +562,16 @@ class DshBridgePlugin(MaiBotPlugin):
 
     def _spawn(self, task: str, ws: str, env: dict[str, str]) -> "subprocess.Popen[bytes]":
         conf = self.config.dsh
-        args = ["cmd.exe", "/c", conf.command, *conf.extra_args.split(), "--json", "-"]
+        extra = conf.extra_args.split()
+        if _IS_WINDOWS:
+            # Windows 下经 cmd.exe /c 启动（command / extra_args 属管理员可信配置）
+            args = ["cmd.exe", "/c", conf.command, *extra, "--json", "-"]
+            popen_kwargs: dict[str, Any] = {"creationflags": _CREATE_NO_WINDOW}
+        else:
+            # 类 Unix：用 shell 解析 command 与参数，子进程独立进程组以便整体终止
+            cmdline = " ".join([shlex.quote(conf.command), *[shlex.quote(x) for x in extra], "--json", "-"])
+            args = ["/bin/sh", "-c", cmdline]
+            popen_kwargs = {"start_new_session": True}
         proc = subprocess.Popen(
             args,
             cwd=ws,
@@ -560,7 +579,7 @@ class DshBridgePlugin(MaiBotPlugin):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,
-            creationflags=_CREATE_NO_WINDOW,
+            **popen_kwargs,
         )
         try:
             if proc.stdin:
