@@ -53,7 +53,9 @@
 2. **给密钥**：设置环境变量 `DEEPSEEK_API_KEY`（**推荐**，插件自动读取）；也可填进 `config.toml` 的 `[dsh].api_key`（不推荐，勿提交）。
 3. **启用**：把 `config.toml.example` 复制为 `config.toml`，将 `[plugin].enabled` 设为 `true`，重载麦麦。
 
-可选：在 `[permission].allowed_users` 填入允许使用 `/dsh` 的用户 ID（逗号分隔）。**留空表示拒绝所有人**（fail-closed）；若想开放，需显式列出。`dsh_run` 由麦麦的 Planner 决定调用。
+可选：在 `[permission].allowed_users` 填入允许使用 `/dsh` 的用户 ID（逗号分隔）。**留空表示拒绝所有人**（fail-closed）；若想开放，需显式列出。**该白名单同时约束 `/dsh` 命令、`dsh_run` 工具与 `schedule_task/update/cancel` 三个工具**——Planner 自主调工具时，取的是触发消息的用户身份。若把 `[permission].enabled` 设为 `false`，等同于**放开给所有人**（不推荐）。`dsh_run` 由麦麦的 Planner 决定调用。
+
+> ⚠️ **隐私提示**：被外包的任务文本（以及 dsh 执行时读到的上下文）会经 **dsh 发往 DeepSeek 的推理服务**。群内内容敏感时，请启用前知晓。
 
 ## 配套 dsh 插件推荐
 
@@ -98,11 +100,20 @@ dsh 的能力按「plugin bundle」叠进 profile（改 `$DSH_HOME/profiles/<名
 
 ### 关于子进程、文件与网络（供审查参考）
 
-- **子进程**：本插件以子进程方式调用 `dsh`（`subprocess`），这是它的核心用途——把任务交给 dsh 引擎执行。命令取自配置项 `[dsh].command`（默认 `dsh`），**不使用 `shell=True`、不拼接用户输入成命令**；附加参数来自固定的 `[dsh].extra_args`。
-- **文件写入**：仅写插件自己的数据目录 `ctx.paths.data_dir`（工作区、`results/`、`scheduled_tasks.json`），不触碰宿主其它文件；`schedule-requests/` 内部请求文件在消费后移入 `.done/`。
-- **交付物**：来自 dsh 通过 `present` 声明的文件，逐条校验为「工作区内存在的普通文件」后才发送；`schedule-requests` 等内部路径被排除，不算交付物。
-- **网络**：本插件自身**不主动发起外部请求**，不上传聊天记录 / 用户 ID / 群 ID / 图片 / 配置 / token。dsh 是否联网、访问什么，取决于用户自己的 dsh 配置与任务内容（dsh 是独立引擎，由用户自行安装与授权）。
-- **配置**：仓库不提交 `config.toml`（只提供 `config.toml.example`，并用 `.gitignore` 忽略真实配置），避免与用户本地配置冲突。
+- **子进程**：本插件以子进程方式调用 `dsh`（`subprocess`），这是它的核心用途——把任务交给 dsh 引擎执行。命令取自配置项 `[dsh].command`（默认 `dsh`），**不使用 `shell=True`、不拼接用户输入成命令**。
+  - **注意**：`_spawn` 在 Windows 下经 `cmd.exe /c` 启动，`[dsh].command` 与 `[dsh].extra_args` 实质会被 shell 解析——**这两项属管理员可信配置，不得由聊天内容产生**。
+  - 当前实现面向 **Windows**（`cmd.exe` / `taskkill`）；非 Windows 环境需自行适配 spawn 与终止逻辑。
+- **权限**：`/dsh`、`dsh_run`、`schedule_*` 均受 `[permission].allowed_users` 约束（工具身份取自触发消息的用户）。白名单留空 = 拒绝所有人。
+- **文件写入**：仅写插件数据目录 `ctx.paths.data_dir`；每个聊天流的工作区名做**白名单字符清洗**（仅 `A-Za-z0-9_-`），杜绝 `..` 越位；`schedule-requests/` 内部请求消费后移入 `.done/`。
+- **交付物**：来自 dsh 通过 `present` 声明的文件，逐条校验为「**本流工作区内存在的普通文件**」（resolve 后做 containment）后才发送；`schedule-requests` 等内部路径排除。
+- **网络**：本插件自身**不主动发起外部请求**，不上传聊天记录 / 用户 ID / 群 ID / 图片 / 配置 / token。dsh 是否联网取决于用户自己的 dsh 配置与任务内容。
+- **结果文件 / 交付物上传**：依赖 NapCat 的 `adapter.napcat.file.*`，属 **best-effort**——非 NapCat 适配器回退为转发卡片，该接口不属插件承诺的稳定能力。
+- **配置**：仓库不提交 `config.toml`（只给 `config.toml.example` + `.gitignore`）。
+
+### dsh 自建定时任务（设计说明，供审查参考）
+
+- dsh 可在其工作区写 `schedule-requests/*.json`，桥在任务收尾时扫描并转为定时任务（移入 `.done/`，幂等）。这是**有意提供的能力**——让 dsh 能把「稍后再做」的事排进调度。
+- 该通道以「用户消息触发 dsh 任务」为前提；需要更紧时，可在 `[permission]` 收紧可用用户。
 
 ## 许可
 
