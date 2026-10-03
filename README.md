@@ -96,6 +96,14 @@ dsh 的能力按「plugin bundle」叠进 profile（改 `$DSH_HOME/profiles/<名
 - API Key 优先走环境变量，避免明文入库。
 - 若给 dsh 挂了高权限 MCP（如可执行命令的服务器），等于放宽了边界，请自行评估。
 
+### 关于子进程、文件与网络（供审查参考）
+
+- **子进程**：本插件以子进程方式调用 `dsh`（`subprocess`），这是它的核心用途——把任务交给 dsh 引擎执行。命令取自配置项 `[dsh].command`（默认 `dsh`），**不使用 `shell=True`、不拼接用户输入成命令**；附加参数来自固定的 `[dsh].extra_args`。
+- **文件写入**：仅写插件自己的数据目录 `ctx.paths.data_dir`（工作区、`results/`、`scheduled_tasks.json`），不触碰宿主其它文件；`schedule-requests/` 内部请求文件在消费后移入 `.done/`。
+- **交付物**：来自 dsh 通过 `present` 声明的文件，逐条校验为「工作区内存在的普通文件」后才发送；`schedule-requests` 等内部路径被排除，不算交付物。
+- **网络**：本插件自身**不主动发起外部请求**，不上传聊天记录 / 用户 ID / 群 ID / 图片 / 配置 / token。dsh 是否联网、访问什么，取决于用户自己的 dsh 配置与任务内容（dsh 是独立引擎，由用户自行安装与授权）。
+- **配置**：仓库不提交 `config.toml`（只提供 `config.toml.example`，并用 `.gitignore` 忽略真实配置），避免与用户本地配置冲突。
+
 ## 许可
 
 MIT
